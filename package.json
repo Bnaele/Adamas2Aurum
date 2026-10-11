@@ -4,9 +4,11 @@
 	},
 	"description": "A location-based campus trivia and card-battle game.",
 	"devDependencies": {
+		"esbuild": "^0.28.2",
 		"jest": "^29.7.0",
 		"jest-coverage-badges": "^1.0.0",
 		"jest-environment-jsdom": "^29.7.0",
+		"maplibre-gl": "^3.6.2",
 		"prettier": "^3.9.6",
 		"vite": "^8.2.2"
 	},
@@ -22,7 +24,8 @@
 				"collectCoverageFrom": [
 					"**/*.js",
 					"!**/*.test.js",
-					"!**/node_modules/**"
+					"!**/node_modules/**",
+					"!**/vendor/**"
 				]
 			},
 			{
@@ -65,8 +68,9 @@
 		"db:seed-wits": "npm run db:seed-wits --prefix app/src/backend",
 		"db:reset": "npm run db:reset --prefix app/src/backend",
 		"db:migrate-auth": "npm run db:migrate-auth --prefix app/src/backend",
+		"build:frontend": "node scripts/build-frontend.mjs",
 		"dev:backend": "npm run dev --prefix app/src/backend",
-		"dev:frontend": "serve app/src/frontend -l 8055",
+		"dev:frontend": "node scripts/ensure-vendor.mjs && serve app/src/frontend -l 8055",
 		"format": "prettier --write .",
 		"format:check": "prettier --check .",
 		"start:backend": "npm run start --prefix app/src/backend",
