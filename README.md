@@ -322,6 +322,19 @@ Better Auth.
 
 ---
 
+## Testing Accounts
+
+The accounts below are provided for testing:
+
+1. Bob
+      - Email: `bob@example.com`
+      - Password: `1234`
+1. Alice
+      - Email: `alice@example.com`
+      - Password: `1234`
+
+---
+
 ## Team
 
 Developed by **404 Found Us**, Software Design Project — University of the Witwatersrand.
