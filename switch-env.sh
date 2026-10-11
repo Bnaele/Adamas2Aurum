@@ -7,8 +7,12 @@ TARGET_DIR="${2:-.}"
 LOCAL_HTTP="${BACKEND_LOCAL_URL:-http://localhost:3000}"
 RENDER_HTTP="${BACKEND_RENDER_URL}"
 if [[ -z "$BACKEND_RENDER_URL" ]]; then
-	echo "Missing env \$BACKEND_RENDER_URL"
-	exit 1
+	if [[ -z "$BACKEND_URL" ]]; then
+		echo "Missing env \$BACKEND_RENDER_URL"
+		exit 1
+	else
+		RENDER_HTTP="${BACKEND_URL}"
+	fi
 fi
 
 to_ws() {

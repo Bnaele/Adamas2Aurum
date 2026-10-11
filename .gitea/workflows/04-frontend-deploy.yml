@@ -28,9 +28,10 @@ jobs:
                                   exit 1
 
                         - name: Point frontend at the production backend
-                          run: bash ./switch-env.sh render app/src/frontend
+                          run: bash ./switch-env.sh render app/src
                           env:
                                   BACKEND_RENDER_URL: ${{ secrets.BACKEND_RENDER_URL }}
+                                  BACKEND_URL: ${{ secrets.BACKEND_URL }}
 
                         - name: Verify no localhost references remain
                           run: |
