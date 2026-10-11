@@ -22,3 +22,6 @@ campus.geojson
 HANDOFF.md
 app/src/backend/placement/map.osm
 app/src/backend/placement/scripts/wits_paths.geojson
+
+dist/
+app/src/frontend/vendor/
