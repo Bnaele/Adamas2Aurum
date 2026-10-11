@@ -638,7 +638,7 @@ describe('reconnecting to an active battle', () => {
 		const { battle_id } = await next_message(a, 'battle_started')
 
 		a.close()
-		await waitUntil(() => abandon_timers.length === 1)
+		await waitUntil(() => abandon_timers.length === 1, 130)
 		await abandon_timers[0]()
 		await waitUntil(
 			() => db.battles.get(battle_id).status === 'ABANDONED'
