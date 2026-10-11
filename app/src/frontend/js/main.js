@@ -5,6 +5,7 @@ import {
 	clearBridgeSession,
 	requestPinReset,
 	confirmPinReset,
+	completeGoogleSignIn,
 } from './auth-client.js'
 import { API_BASE } from './constants.js'
 import { get_player_location } from './geolocation.js'
@@ -1397,7 +1398,12 @@ async function initializeApp() {
 	// GPS finish loading, so the nav never flashes the wrong state while
 	// locating. The map-load handler below re-syncs once pins render.
 	showAuthErrorFromUrl()
-	checkAuthSession().catch(() => {})
+	completeGoogleSignIn()
+		.then((res) => {
+			if (res?.error) alert(res.error.message)
+		})
+		.catch(() => {})
+		.finally(() => checkAuthSession().catch(() => {}))
 	map = new maplibregl.Map({
 		container: 'map',
 		style: createCampusStyle(),
