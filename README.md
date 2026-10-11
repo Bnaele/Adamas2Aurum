@@ -325,12 +325,13 @@ Better Auth.
 ## Testing Accounts
 
 The accounts below are provided for testing:
+
 1. Bob
-    * Email: `bob@example.com`
-    * Password: `1234`
-1. Alice 
-    * Email: `alice@example.com`
-    * Password: `1234`
+      - Email: `bob@example.com`
+      - Password: `1234`
+1. Alice
+      - Email: `alice@example.com`
+      - Password: `1234`
 
 ---
 
