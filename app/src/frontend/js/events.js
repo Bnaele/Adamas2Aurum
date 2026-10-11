@@ -1,5 +1,6 @@
 import { API_BASE } from './constants.js'
 import { get_player_location } from './geolocation.js'
+import { get_player_location_with_timeout } from './geolocation.js'
 import { distance } from './general.js'
 import { updateAuthNav, logout } from './auth-helpers.js'
 import { get_location_for_challenge } from './qr-scanner.js'
@@ -353,7 +354,11 @@ function refreshAllStopsProximity() {
 				rangeFirst: true,
 			})
 
-		if (activePopup && activePopup === ref.popup) {
+		if (
+			activePopup &&
+			activePopup === ref.popup &&
+			ref.popup.isOpen()
+		) {
 			activePopup.setHTML(
 				buildPopupHTML(ref.ev, inRange, onCampus)
 			)
@@ -528,7 +533,7 @@ function renderNextUp(undoneEvents, playerLoc, doneCount = 0) {
 		if (isNaN(lng) || isNaN(lat)) return
 		map.flyTo({ center: [lng, lat], zoom: 18, duration: 600 })
 		const ref = stopRefs.find(
-			(r) => r.ev.event_id === next.event_id
+			(r) => Number(r.ev.event_id) === Number(next.event_id)
 		)
 		if (ref) openStopPopup(ref)
 	})
@@ -537,7 +542,20 @@ function renderNextUp(undoneEvents, playerLoc, doneCount = 0) {
 
 // ── Load events ───────────────────────────────────────────────
 // Completed events are hidden; the banner points at what's left.
-async function loadEvents() {
+async function loadEvents({ force = false } = {}) {
+	// Don't yank markers while the player is reading a popup or
+	// mid-challenge — rebuilding here closed the tapped popup and
+	// re-added every pin, which looked like many events flashing by.
+	// The post-win reload passes force:true so a counted win still
+	// hides immediately even with the result modal open.
+	if (
+		!force &&
+		(document.getElementById('trivia-overlay') ||
+			document.getElementById('result-overlay') ||
+			document.getElementById('qr-overlay') ||
+			document.querySelector('.maplibregl-popup'))
+	)
+		return
 	clearMarkers()
 	elError.classList.add('hidden')
 
@@ -570,13 +588,17 @@ async function loadEvents() {
 			return
 		}
 
-		// Try player location for range check: prefer live coordinates if available
+		// Try player location for range check: prefer live coordinates if available.
+		// Give GPS 2.5 s so markers never wait out the full fix timeout.
 		let playerLoc = playerLatLng
 			? [playerLatLng[1], playerLatLng[0]]
 			: null
 		if (!playerLoc) {
 			try {
-				playerLoc = await get_player_location()
+				playerLoc =
+					await get_player_location_with_timeout(
+						2500
+					)
 			} catch {
 				/* fine */
 			}
@@ -619,6 +641,11 @@ async function loadEvents() {
 			const popup = new maplibregl.Popup({
 				offset: 25,
 				closeButton: true,
+			})
+			// If the player closes the popup via the X button, forget it
+			// so proximity refreshes don't rewrite a dead popup.
+			popup.on('close', () => {
+				if (activePopup === popup) activePopup = null
 			})
 
 			const ref = {
@@ -676,7 +703,9 @@ function addSidebarCard(ev, inRange, lng, lat) {
 			c.classList.remove('active')
 		)
 		card.classList.add('active')
-		const ref = stopRefs.find((r) => r.ev.event_id === ev.event_id)
+		const ref = stopRefs.find(
+			(r) => Number(r.ev.event_id) === Number(ev.event_id)
+		)
 		if (ref) openStopPopup(ref)
 	})
 
@@ -692,8 +721,20 @@ window.__a2a_get_event = (eventId) =>
 	null
 window.__a2a_get_player_lnglat = () => playerLatLng
 
+// QR proof for the currently open challenge, keyed by event id. The GET
+// side of the QR fallback passes location_check_id as a query param, but
+// the submit side never forwarded it — so QR-verified players fell into
+// the GPS branch and got 'Location is required'. Stashed here when the
+// challenge opens, consumed (once) on submit.
+const pendingQrByEvent = new Map()
+
+// Running countdown of the open trivia modal, if any. A re-challenge
+// must stop the previous timer first — otherwise the old interval keeps
+// ticking and submits a stale question after the new one opens.
+let activeTriviaTimer = null
+
 // ── Challenge handler ─────────────────────────────────────────
-window._challenge = async function (eventId) {
+window._challenge = async function (eventId, btnEl) {
 	if (!currentUser) {
 		// The session check may have failed on a network blip — retry
 		// once before treating the player as logged out.
@@ -704,7 +745,13 @@ window._challenge = async function (eventId) {
 		}
 	}
 
-	const btn = document.querySelector('.popup-challenge-btn')
+	// Disable the tapped button itself (passed as `this` from the popup
+	// markup) — not the first challenge button in the document, which
+	// may belong to a different event's popup.
+	const btn =
+		btnEl instanceof Element
+			? btnEl
+			: document.querySelector('.popup-challenge-btn')
 	if (btn) {
 		btn.disabled = true
 		btn.textContent = 'Verifying location…'
@@ -743,6 +790,17 @@ window._challenge = async function (eventId) {
 		location.mode === 'gps'
 			? `lat=${location.lat}&lng=${location.lng}&accuracy=${location.accuracy}`
 			: `qr_verified=true&location_check_id=${location.location_check_id}`
+
+	// Remember QR proof for the submit call (cleared on submit). A GPS
+	// challenge for the same event drops any stale QR proof.
+	if (location.mode === 'gps') {
+		pendingQrByEvent.delete(Number(eventId))
+	} else {
+		pendingQrByEvent.set(
+			Number(eventId),
+			location.location_check_id
+		)
+	}
 
 	try {
 		const res = await fetch(
@@ -786,10 +844,19 @@ window._challenge = async function (eventId) {
 
 // ── Trivia modal ──────────────────────────────────────────────
 function showTriviaModal(eventId, trivia) {
+	// Stop any previous countdown before replacing the modal, so a
+	// re-challenge can't be answered by the old timer's stale submit.
+	if (activeTriviaTimer) {
+		clearInterval(activeTriviaTimer)
+		activeTriviaTimer = null
+	}
 	document.getElementById('trivia-overlay')?.remove()
 
 	const timeLimit = trivia.time_limit_s || 30
 	const startTime = Date.now()
+	// Exactly one submit per modal: a tap landing on the same tick as
+	// the timeout (or a fast double-tap) must not fire two requests.
+	let submitted = false
 
 	// FILL_BLANK: no options are sent — the player types the answer.
 	const isFillBlank = trivia.format === 'FILL_BLANK'
@@ -856,10 +923,35 @@ function showTriviaModal(eventId, trivia) {
 	`
 
 	document.body.appendChild(overlay)
+
+	// Single funnel for every submit path below (option tap, fill-blank
+	// form, timeout): first call wins, the rest are ignored.
+	const submitOnce = (optionId, elapsed, answerText = null) => {
+		if (submitted) return
+		submitted = true
+		if (activeTriviaTimer) {
+			clearInterval(activeTriviaTimer)
+			activeTriviaTimer = null
+		}
+		overlay.querySelectorAll('.trivia-option-btn').forEach(
+			(b) => (b.disabled = true)
+		)
+		window._submitAnswer(
+			eventId,
+			trivia.question_id,
+			optionId,
+			elapsed,
+			answerText
+		)
+	}
+
 	overlay.querySelector('#trivia-close-btn').addEventListener(
 		'click',
 		() => {
-			clearInterval(timerInterval)
+			if (activeTriviaTimer) {
+				clearInterval(activeTriviaTimer)
+				activeTriviaTimer = null
+			}
 			overlay.remove()
 		}
 	)
@@ -872,19 +964,8 @@ function showTriviaModal(eventId, trivia) {
 				overlay.querySelector('#trivia-fill-input')
 			const text = input.value.trim()
 			if (!text) return
-			const elapsed = Date.now() - startTime
-			clearInterval(timerInterval)
 			input.disabled = true
-			overlay.querySelectorAll('.trivia-option-btn').forEach(
-				(b) => (b.disabled = true)
-			)
-			window._submitAnswer(
-				eventId,
-				trivia.question_id,
-				null,
-				elapsed,
-				text
-			)
+			submitOnce(null, Date.now() - startTime, text)
 		}
 	)
 
@@ -896,17 +977,7 @@ function showTriviaModal(eventId, trivia) {
 			if (!btn) return
 			const optionId = parseInt(btn.dataset.optionId, 10)
 			if (!optionId) return
-			const elapsed = Date.now() - startTime
-			clearInterval(timerInterval)
-			overlay.querySelectorAll('.trivia-option-btn').forEach(
-				(b) => (b.disabled = true)
-			)
-			window._submitAnswer(
-				eventId,
-				trivia.question_id,
-				optionId,
-				elapsed
-			)
+			submitOnce(optionId, Date.now() - startTime)
 		}
 	)
 
@@ -914,7 +985,14 @@ function showTriviaModal(eventId, trivia) {
 	const timerEl = overlay.querySelector('#trivia-timer')
 	const timerBar = overlay.querySelector('#trivia-timer-bar')
 
-	const timerInterval = setInterval(() => {
+	activeTriviaTimer = setInterval(() => {
+		// The modal may already be gone (answered + removed) while this
+		// tick was queued — never submit twice.
+		if (submitted || !document.body.contains(overlay)) {
+			clearInterval(activeTriviaTimer)
+			activeTriviaTimer = null
+			return
+		}
 		remaining--
 		timerEl.textContent = `${remaining}s`
 		timerBar.style.width = `${(remaining / timeLimit) * 100}%`
@@ -923,16 +1001,7 @@ function showTriviaModal(eventId, trivia) {
 			timerBar.style.background = 'var(--danger)'
 		}
 		if (remaining <= 0) {
-			clearInterval(timerInterval)
-			overlay.querySelectorAll('.trivia-option-btn').forEach(
-				(b) => (b.disabled = true)
-			)
-			window._submitAnswer(
-				eventId,
-				trivia.question_id,
-				null,
-				timeLimit * 1000
-			)
+			submitOnce(null, timeLimit * 1000)
 		}
 	}, 1000)
 }
@@ -976,6 +1045,14 @@ window._submitAnswer = async function (
 		}
 		if (answerText) body.answer_text = answerText
 		else body.selected_option_id = optionId
+		// QR-verified challenge: forward the proof so the backend takes
+		// the FALLBACK_QR branch instead of demanding GPS coordinates.
+		const qrCheckId = pendingQrByEvent.get(Number(eventId))
+		pendingQrByEvent.delete(Number(eventId))
+		if (qrCheckId) {
+			body.qr_verified = true
+			body.location_check_id = qrCheckId
+		}
 		if (lat !== null) body.claimed_lat = lat
 		if (lng !== null) body.claimed_lng = lng
 		const res = await fetch(`${API_BASE}/api/trivia/submit`, {
@@ -996,7 +1073,7 @@ window._submitAnswer = async function (
 		// does not count and must not hide the event.)
 		if (data.is_correct && data.location_verified) {
 			markEventCompletedLocal(eventId)
-			loadEvents()
+			loadEvents({ force: true })
 		}
 	} catch {
 		alert('Failed to submit answer.')

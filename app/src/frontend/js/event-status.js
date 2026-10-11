@@ -113,7 +113,9 @@ export function eventActionHTML(ev, state, { onCampus, onAttempt }) {
 	if (state.status === 'UPCOMING')
 		return `<p class="popup-out-of-range">This event hasn't started yet.</p>`
 	if (state.canAttempt)
-		return `<button class="popup-challenge-btn" onclick="${onAttempt}(${Number(ev.event_id)})">⚡ Attempt Challenge</button>`
+		// `this` is the tapped button itself, so the challenge flow
+		// disables the right button even with several popups in the DOM.
+		return `<button class="popup-challenge-btn" onclick="${onAttempt}(${Number(ev.event_id)},this)">⚡ Attempt Challenge</button>`
 	if (!onCampus)
 		return `<p class="popup-out-of-range">🏛️ You need to be on Wits campus to attempt this challenge.</p>`
 	const away =

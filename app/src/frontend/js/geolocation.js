@@ -1,3 +1,21 @@
+/**
+ * Same result as get_player_location(), but gives up after timeoutMs so pin
+ * rendering never waits out the full 10 s GPS timeout on a desktop that
+ * will never answer. The underlying request keeps running harmlessly;
+ * callers fall back to a default location on rejection.
+ */
+export function get_player_location_with_timeout(timeoutMs = 2500) {
+	return Promise.race([
+		get_player_location(),
+		new Promise((_, reject) =>
+			setTimeout(
+				() => reject(new Error('Location timed out')),
+				timeoutMs
+			)
+		),
+	])
+}
+
 // returns: [latitude, longitude]
 export function get_player_location() {
 	return new Promise((resolve, reject) => {

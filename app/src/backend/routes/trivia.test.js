@@ -237,6 +237,45 @@ describe('GET /api/trivia/event/:eventId', () => {
 		})
 	})
 
+	test('200 — works when auth comes via req.user with no session user', async () => {
+		pool.query
+			.mockResolvedValueOnce([[sampleEvent()]]) // event
+			.mockResolvedValueOnce([
+				[
+					{
+						question_id: 42,
+						format: 'MULTIPLE_CHOICE',
+						body: 'Who founded Wits?',
+						time_limit_s: 30,
+						difficulty: 1,
+					},
+				],
+			]) // question
+			.mockResolvedValueOnce([
+				[{ option_id: 1, body: 'Answer A' }],
+			]) // options
+			.mockResolvedValueOnce([[]]) // canAwardCard: prior win check
+			.mockResolvedValueOnce([[{ check_id: null }]]) // (unused, defensive)
+
+		// No session user — only req.user, as set by bridge-style auth.
+		const app = express()
+		app.use(express.json())
+		app.use((req, _res, next) => {
+			req.session = {}
+			req.user = { user_id: 7 }
+			next()
+		})
+		app.use('/api/trivia', trivia_router)
+		await withServer(app, async (base) => {
+			const res = await fetch(
+				`${base}/api/trivia/event/1?lat=-26.1905&lng=28.0285`
+			)
+			expect(res.status).toBe(200)
+			const body = await res.json()
+			expect(body.question_id).toBe(42)
+		})
+	})
+
 	test('200 — fallback_required when GPS accuracy is too poor', async () => {
 		pool.query.mockResolvedValueOnce([[sampleEvent()]]) // event
 

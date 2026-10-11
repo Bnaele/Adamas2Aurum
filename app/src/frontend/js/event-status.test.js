@@ -130,7 +130,7 @@ describe('popup markup', () => {
 		}
 		expect(
 			eventActionHTML(EV, eventState(EV, AT_EVENT, NOW), opts)
-		).toContain('onclick="handleChallengeAttempt(42)"')
+		).toContain('onclick="handleChallengeAttempt(42,this)"')
 		expect(
 			eventActionHTML(EV, eventState(EV, FAR, NOW), opts)
 		).not.toContain('<button')

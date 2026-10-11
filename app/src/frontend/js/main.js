@@ -2,11 +2,13 @@ import {
 	usernameSignIn,
 	usernameSignUp,
 	googleSignIn,
-	baSignOut,
 	clearBridgeSession,
+	requestPinReset,
+	confirmPinReset,
 } from './auth-client.js'
 import { API_BASE } from './constants.js'
 import { get_player_location } from './geolocation.js'
+import { get_player_location_with_timeout } from './geolocation.js'
 import { suggestEventOrder } from './graph.js'
 import { redirectAfterLogin, updateAuthNav, logout } from './auth-helpers.js'
 import { initFeedback } from './feedback.js'
@@ -208,11 +210,21 @@ async function fetchCampusEvents() {
 		// Completed stops disappear — ordering, pins, and circles all
 		// run on the undone list only.
 		const todoEvents = dbEvents.filter((e) => !isDoneEvent(e))
-		const coords = await get_player_location() // returns [latitude, longitude]
-		const loc = {
-			latitude: coords[0],
-			longitude: coords[1],
+		// Don't let a hanging GPS fix delay the pins: give it 2.5 s,
+		// then order from campus home. Live proximity still corrects
+		// itself on the first real fix.
+		let coords = null
+		try {
+			coords = await get_player_location_with_timeout(2500) // returns [latitude, longitude]
+		} catch {
+			coords = null
 		}
+		const loc = coords
+			? { latitude: coords[0], longitude: coords[1] }
+			: {
+					latitude: CAMPUS_HOME[1],
+					longitude: CAMPUS_HOME[0],
+				}
 		const { order } = suggestEventOrder(todoEvents, loc)
 		suggestedOrder = order
 		refreshNextSuggested()
@@ -263,6 +275,16 @@ function eventPopupFor(ev) {
 	})
 }
 
+// Only one event popup may be visible at a time: tapping a new pin
+// closes any previously opened popup instead of stacking them.
+function closeOtherPopups(exceptPopup = null) {
+	for (const s of stopMarkers) {
+		if (s.popup !== exceptPopup && s.popup.isOpen()) {
+			s.popup.remove()
+		}
+	}
+}
+
 function renderEventSidebar(stops) {
 	const list = document.getElementById('sidebar-events')
 	if (!list) return
@@ -287,7 +309,9 @@ function renderEventSidebar(stops) {
 				zoom: Math.max(map.getZoom(), 18),
 				duration: 600,
 			})
+			closeOtherPopups(stop.popup)
 			if (!stop.popup.isOpen()) stop.marker.togglePopup()
+			refreshEventStates()
 		})
 		list.appendChild(card)
 	}
@@ -898,6 +922,26 @@ function setupGeoPanel() {
 }
 
 /**
+ * Google sign-in failures come back as ?auth_error=<message> on the page
+ * the backend redirected to. Show the message once and clean the URL.
+ */
+function showAuthErrorFromUrl() {
+	const params = new URLSearchParams(window.location.search)
+	const message = params.get('auth_error')
+	if (!message) return
+	params.delete('auth_error')
+	const qs = params.toString()
+	history.replaceState(
+		null,
+		'',
+		window.location.pathname +
+			(qs ? `?${qs}` : '') +
+			window.location.hash
+	)
+	alert(message)
+}
+
+/**
  * AUTHENTICATION SESSION CHECK
  */
 /**
@@ -918,18 +962,6 @@ async function checkAuthSession() {
 			const user = await res.json()
 			currentUser = user
 			updateAuthNav(user)
-		} else if (res.status === 409) {
-			// Google sign-in refused: the email belongs to a
-			// username + PIN account. Drop the Google session so this
-			// doesn't repeat on every page load, and say why.
-			const { error } = await res.json().catch(() => ({}))
-			await baSignOut()
-			currentUser = null
-			updateAuthNav(null)
-			alert(
-				error ||
-					'Google sign-in was refused for this account.'
-			)
 		} else {
 			// 401 from the backend — no valid session.
 			currentUser = null
@@ -1364,6 +1396,7 @@ async function initializeApp() {
 	// Auth first (fire-and-forget): resolve the header before the map and
 	// GPS finish loading, so the nav never flashes the wrong state while
 	// locating. The map-load handler below re-syncs once pins render.
+	showAuthErrorFromUrl()
 	checkAuthSession().catch(() => {})
 	map = new maplibregl.Map({
 		container: 'map',
@@ -1444,7 +1477,9 @@ async function initializeApp() {
 						offset: 25,
 					}).setHTML(eventPopupFor(bld.ev))
 					// Rebuild on open so status/range are current.
+					// Close any other open popup first — one tap = one event.
 					popup.on('open', () => {
+						closeOtherPopups(popup)
 						popup.setHTML(
 							eventPopupFor(bld.ev)
 						)
@@ -1546,6 +1581,13 @@ window.closeAuthDrawer = () => {
 
 function showDrawerStatus(message, isError) {
 	const el = document.getElementById('auth-drawer-status')
+	if (!el) return
+	el.textContent = message
+	el.className = `auth-status visible ${isError ? 'error' : 'success'}`
+}
+
+function showForgotPinStatus(message, isError) {
+	const el = document.getElementById('forgot-pin-status')
 	if (!el) return
 	el.textContent = message
 	el.className = `auth-status visible ${isError ? 'error' : 'success'}`
@@ -1661,6 +1703,87 @@ function setupAuthDrawerHandlers() {
 				showDrawerStatus('Account created!', false)
 				closeAuthDrawer()
 				redirectAfterLogin(data)
+			}
+		})
+	}
+
+	// Forgot PIN: request a reset token (returned in-body in demo mode)
+	const forgotPinForm = document.getElementById('drawer-forgot-pin-form')
+	if (forgotPinForm) {
+		forgotPinForm.addEventListener('submit', async (e) => {
+			e.preventDefault()
+			const username = document
+				.getElementById('drawer-forgot-username')
+				.value.trim()
+			if (!username) {
+				showForgotPinStatus(
+					'Enter your username first.',
+					true
+				)
+				return
+			}
+			showForgotPinStatus('Sending reset token...', false)
+			const { data, error } = await requestPinReset(username)
+			if (error) {
+				showForgotPinStatus(
+					'Reset request failed: ' +
+						error.message,
+					true
+				)
+			} else if (data?.reset_token) {
+				showForgotPinStatus(
+					'Reset token (demo mode — normally emailed): ' +
+						data.reset_token +
+						' — paste it below with a new PIN.',
+					false
+				)
+			} else {
+				showForgotPinStatus(
+					data?.message ||
+						'If that username exists, a reset token was created.',
+					false
+				)
+			}
+		})
+	}
+
+	// Reset PIN: consume the token and set the new PIN
+	const resetPinForm = document.getElementById('drawer-reset-pin-form')
+	if (resetPinForm) {
+		resetPinForm.addEventListener('submit', async (e) => {
+			e.preventDefault()
+			const username = document
+				.getElementById('drawer-forgot-username')
+				.value.trim()
+			const token = document
+				.getElementById('drawer-reset-token')
+				.value.trim()
+			const newPin = document.getElementById(
+				'drawer-reset-new-pin'
+			).value
+			if (!username || !token || !newPin) {
+				showForgotPinStatus(
+					'Enter your username, the reset token and a new PIN.',
+					true
+				)
+				return
+			}
+			showForgotPinStatus('Setting new PIN...', false)
+			const { error } = await confirmPinReset(
+				username,
+				token,
+				newPin
+			)
+			if (error) {
+				showForgotPinStatus(
+					'Reset failed: ' + error.message,
+					true
+				)
+			} else {
+				showForgotPinStatus(
+					'PIN updated — you can log in now.',
+					false
+				)
 			}
 		})
 	}

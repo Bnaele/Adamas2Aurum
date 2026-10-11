@@ -235,8 +235,9 @@ async function lastError(ws, msg) {
 	return (await request(ws, msg, 'error')).message
 }
 
-async function waitUntil(check) {
-	for (let i = 0; i < 100; i++) {
+async function waitUntil(check, max_seconds = 1) {
+	const max = (max_seconds * 1000) / 10
+	for (let i = 0; i < max; i++) {
 		if (check()) return
 		await new Promise((r) => setTimeout(r, 10))
 	}
@@ -596,7 +597,7 @@ describe('reconnecting to an active battle', () => {
 			[6, 7, 8, 9, 10]
 		)
 		p1.close()
-		await waitUntil(() => abandon_timers.length === 1)
+		await waitUntil(() => abandon_timers.length === 1, 130)
 
 		const { reply } = await joinLobby(1, 'state_update')
 		expect(reply.battle_id).toBe(battle_id)

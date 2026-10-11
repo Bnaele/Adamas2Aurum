@@ -601,3 +601,278 @@ describe('POST /api/auth/logout', () => {
 		await new Promise((r) => server.close(r))
 	})
 })
+
+describe('GET /api/auth/profile', () => {
+	beforeEach(() => pool.query.mockReset())
+	test('401 when no session', async () => {
+		const app = makeApp({})
+		await withServer(app, async (base) => {
+			const res = await fetch(`${base}/api/auth/profile`)
+			expect(res.status).toBe(401)
+		})
+	})
+	test('200 returns name, username and PIN status', async () => {
+		pool.query
+			.mockResolvedValueOnce([
+				[
+					{
+						user_id: 3,
+						name: 'Cara',
+						email: 'cara',
+						provider_id: 'local:cara',
+					},
+				],
+			])
+			.mockResolvedValueOnce([[{ has_pin: 1 }]])
+		const app = makeApp({
+			user: { user_id: 3, name: 'Cara', email: 'cara' },
+		})
+		await withServer(app, async (base) => {
+			const res = await fetch(`${base}/api/auth/profile`)
+			expect(res.status).toBe(200)
+			const body = await res.json()
+			expect(body).toMatchObject({
+				name: 'Cara',
+				username: 'cara',
+				has_pin: true,
+				is_local: true,
+			})
+		})
+	})
+	test('Google accounts report has_pin false', async () => {
+		pool.query
+			.mockResolvedValueOnce([
+				[
+					{
+						user_id: 4,
+						name: 'G',
+						email: 'g@gmail.com',
+						provider_id: 'google:xyz',
+					},
+				],
+			])
+			.mockResolvedValueOnce([[]])
+		const app = makeApp({
+			user: { user_id: 4, name: 'G', email: 'g@gmail.com' },
+		})
+		await withServer(app, async (base) => {
+			const res = await fetch(`${base}/api/auth/profile`)
+			const body = await res.json()
+			expect(body.has_pin).toBe(false)
+			expect(body.is_local).toBe(false)
+		})
+	})
+})
+
+describe('PATCH /api/auth/profile', () => {
+	beforeEach(() => pool.query.mockReset())
+	test('401 when no session', async () => {
+		const app = makeApp({})
+		await withServer(app, async (base) => {
+			const res = await fetch(`${base}/api/auth/profile`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ name: 'New' }),
+			})
+			expect(res.status).toBe(401)
+		})
+	})
+	test('400 when name is blank', async () => {
+		const app = makeApp({ user: { user_id: 3 } })
+		await withServer(app, async (base) => {
+			const res = await fetch(`${base}/api/auth/profile`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ name: '   ' }),
+			})
+			expect(res.status).toBe(400)
+		})
+	})
+	test('200 updates name and session', async () => {
+		pool.query.mockResolvedValueOnce([{ affectedRows: 1 }])
+		const sess = {
+			user: { user_id: 3, name: 'Old', email: 'cara' },
+		}
+		const app = makeApp(sess)
+		await withServer(app, async (base) => {
+			const res = await fetch(`${base}/api/auth/profile`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ name: 'New Name' }),
+			})
+			expect(res.status).toBe(200)
+			const body = await res.json()
+			expect(body.user.name).toBe('New Name')
+			expect(sess.user.name).toBe('New Name')
+			expect(pool.query.mock.calls[0][1]).toEqual([
+				'New Name',
+				3,
+			])
+		})
+	})
+})
+
+describe('POST /api/auth/change-pin', () => {
+	beforeEach(() => pool.query.mockReset())
+	test('401 when no session', async () => {
+		const app = makeApp({})
+		await withServer(app, async (base) => {
+			const res = await fetch(`${base}/api/auth/change-pin`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					current_pin: '1234',
+					new_pin: '5678',
+				}),
+			})
+			expect(res.status).toBe(401)
+		})
+	})
+	test('400 for Google accounts with no PIN', async () => {
+		pool.query.mockResolvedValueOnce([[]])
+		const app = makeApp({ user: { user_id: 4 } })
+		await withServer(app, async (base) => {
+			const res = await fetch(`${base}/api/auth/change-pin`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					current_pin: '1234',
+					new_pin: '5678',
+				}),
+			})
+			expect(res.status).toBe(400)
+			const body = await res.json()
+			expect(body.error).toMatch(/Google/)
+		})
+	})
+	test('401 when current PIN is wrong', async () => {
+		pool.query.mockResolvedValueOnce([[{ pin_hash: hash('0000') }]])
+		const app = makeApp({ user: { user_id: 3 } })
+		await withServer(app, async (base) => {
+			const res = await fetch(`${base}/api/auth/change-pin`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					current_pin: '1234',
+					new_pin: '5678',
+				}),
+			})
+			expect(res.status).toBe(401)
+		})
+	})
+	test('400 when new PIN is invalid', async () => {
+		pool.query.mockResolvedValueOnce([[{ pin_hash: hash('1234') }]])
+		const app = makeApp({ user: { user_id: 3 } })
+		await withServer(app, async (base) => {
+			const res = await fetch(`${base}/api/auth/change-pin`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					current_pin: '1234',
+					new_pin: '12',
+				}),
+			})
+			expect(res.status).toBe(400)
+		})
+	})
+	test('200 updates the PIN hash', async () => {
+		pool.query
+			.mockResolvedValueOnce([[{ pin_hash: hash('1234') }]])
+			.mockResolvedValueOnce([{ affectedRows: 1 }])
+		const app = makeApp({ user: { user_id: 3 } })
+		await withServer(app, async (base) => {
+			const res = await fetch(`${base}/api/auth/change-pin`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					current_pin: '1234',
+					new_pin: '5678',
+				}),
+			})
+			expect(res.status).toBe(200)
+			const updateCall = pool.query.mock.calls[1]
+			expect(updateCall[0]).toMatch(
+				/UPDATE user_credentials SET pin_hash/
+			)
+			expect(updateCall[1][1]).toBe(3)
+		})
+	})
+})
+
+describe('DELETE /api/auth/account', () => {
+	beforeEach(() => {
+		pool.query.mockReset()
+		delete pool.getConnection
+	})
+	test('401 when no session', async () => {
+		const app = makeApp({})
+		await withServer(app, async (base) => {
+			const res = await fetch(`${base}/api/auth/account`, {
+				method: 'DELETE',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					confirmation: 'DELETE',
+				}),
+			})
+			expect(res.status).toBe(401)
+		})
+	})
+	test('400 without DELETE confirmation', async () => {
+		const app = makeApp({ user: { user_id: 3 } })
+		await withServer(app, async (base) => {
+			const res = await fetch(`${base}/api/auth/account`, {
+				method: 'DELETE',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ confirmation: 'yes' }),
+			})
+			expect(res.status).toBe(400)
+		})
+	})
+	test('200 removes login and anonymises the user', async () => {
+		const connQueries = []
+		const conn = {
+			beginTransaction: jest.fn(),
+			commit: jest.fn(),
+			rollback: jest.fn(),
+			release: jest.fn(),
+			query: jest.fn((sql, params) => {
+				connQueries.push([sql, params])
+				return Promise.resolve([[]])
+			}),
+		}
+		pool.getConnection = jest.fn().mockResolvedValue(conn)
+		let destroyed = false
+		const sess = {
+			user: { user_id: 3, name: 'Cara', email: 'cara' },
+			destroy: (cb) => {
+				destroyed = true
+				cb()
+			},
+		}
+		const app = makeApp(sess)
+		await withServer(app, async (base) => {
+			const res = await fetch(`${base}/api/auth/account`, {
+				method: 'DELETE',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					confirmation: 'DELETE',
+				}),
+			})
+			expect(res.status).toBe(200)
+			expect(conn.commit).toHaveBeenCalled()
+			expect(destroyed).toBe(true)
+			const sqls = connQueries.map((c) => c[0])
+			expect(
+				sqls.some((s) =>
+					s.match(/DELETE FROM user_credentials/)
+				)
+			).toBe(true)
+			expect(
+				sqls.some((s) =>
+					s.match(/UPDATE users SET name = \?/)
+				)
+			).toBe(true)
+		})
+		delete pool.getConnection
+	})
+})

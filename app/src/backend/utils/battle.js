@@ -1,6 +1,6 @@
 import pool from './db.js'
 
-export const TURN_TIMEOUT_MS = 10 * 1000
+export const TURN_TIMEOUT_MS = 32 * 1000
 export const BATTLE_DECK_NO_CARDS = 5
 export const MAX_LEGENDARY_PER_DECK = 1
 // With 4 categories and 5 slots, at most 2 per category means every deck

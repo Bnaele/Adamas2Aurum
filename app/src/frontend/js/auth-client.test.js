@@ -16,45 +16,39 @@ afterEach(() => {
 })
 
 describe('googleSignIn', () => {
-	// main.js does `const { error } = await googleSignIn()`, so it must
-	// always resolve to an object — it used to resolve to undefined and
-	// throw a TypeError.
-	beforeEach(() =>
-		jest.spyOn(console, 'error').mockImplementation(() => {})
-	)
+	const originalLocation = window.location
 
-	test('returns { data: null, error } when the server rejects', async () => {
-		mockFetch(500, { message: 'Table user does not exist' })
-		const result = await googleSignIn()
-		expect(result.data).toBeNull()
-		expect(result.error.message).toBe('Table user does not exist')
+	beforeEach(() => {
+		delete window.location
+		window.location = {
+			href: '',
+			origin: 'https://app.example',
+			pathname: '/pages/events.html',
+			search: '',
+		}
 	})
 
-	test('returns an error when no authorization URL comes back', async () => {
-		mockFetch(200, {})
-		const { error } = await googleSignIn()
-		expect(error.message).toMatch(/authorization URL/)
+	afterEach(() => {
+		window.location = originalLocation
 	})
 
-	test('returns { error } instead of throwing on a network failure', async () => {
-		global.fetch = jest.fn(async () => {
-			throw new Error('offline')
-		})
-		const { data, error } = await googleSignIn()
-		expect(data).toBeNull()
-		expect(error.message).toBe('offline')
+	test('redirects the browser to the backend Google route', () => {
+		googleSignIn()
+		expect(window.location.href).toBe(
+			`${API_BASE}/api/auth/google?return_to=${encodeURIComponent('https://app.example/')}`
+		)
 	})
 
-	test('posts to Better Auth social sign-in with the google provider', async () => {
-		mockFetch(500, {})
-		await googleSignIn()
-		const [url, init] = global.fetch.mock.calls[0]
-		expect(url).toBe(`${API_BASE}/api/auth/sign-in/social`)
-		expect(JSON.parse(init.body).provider).toBe('google')
-		// Same landing page as username + PIN login.
-		expect(JSON.parse(init.body).callbackURL).toBe('/')
-		expect(JSON.parse(init.body).newUserCallbackURL).toBe('/')
-		expect(init.credentials).toBe('include')
+	test('returns { data, error: null } so the auth drawer handler works unchanged', () => {
+		const { data, error } = googleSignIn()
+		expect(error).toBeNull()
+		expect(data.url).toMatch(/\/api\/auth\/google\?return_to=/)
+	})
+
+	test('makes no network request (it is a full-page redirect)', () => {
+		global.fetch = jest.fn()
+		googleSignIn()
+		expect(global.fetch).not.toHaveBeenCalled()
 	})
 })
 

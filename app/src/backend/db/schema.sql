@@ -602,4 +602,17 @@ CREATE TABLE IF NOT EXISTS user_terms_acceptances (
     CONSTRAINT fk_uta_user FOREIGN KEY (user_id) REFERENCES users (user_id) ON DELETE CASCADE
 );
 
+-- ============================================================
+--  PERFORMANCE INDEXES  (Milestone 4: geo + attempt lookups)
+--
+--  Created idempotently at boot by ensure_performance_indexes()
+--  in server.js (ignores ER_DUP_KEYNAME 1061 on existing DBs):
+--  idx_events_lat_lng (latitude, longitude),
+--  idx_events_active_window (is_active, starts_at, ends_at),
+--  idx_ta_user_event (user_id, event_id),
+--  idx_lcl_user_checked (user_id, checked_at).
+--  Kept out of schema.sql because bare CREATE INDEX is not
+--  re-runnable and would abort execute_sql_script on every boot.
+-- ============================================================
+
 SET FOREIGN_KEY_CHECKS = 1;

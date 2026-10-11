@@ -20,24 +20,19 @@ ENV_FILE = Path("app/src/backend/.env")
 
 # ---------- output helpers ----------
 
-
 def _enable_ansi_on_windows():
     # Windows 10+ cmd.exe needs this poked once to honor ANSI escape codes.
     if os.name == "nt":
         os.system("")
 
-
 def info(msg):
     print(f"\033[1;35m[info]\033[0m {msg}")
-
 
 def warn(msg):
     print(f"\033[1;33m[warn]\033[0m {msg}")
 
-
 def err(msg):
     print(f"\033[1;31m[error]\033[0m {msg}", file=sys.stderr)
-
 
 def ask_yes_no(prompt):
     while True:
@@ -48,9 +43,7 @@ def ask_yes_no(prompt):
             return False
         print("Please answer y or n.")
 
-
 # ---------- process helpers ----------
-
 
 def find_npm():
     npm = shutil.which("npm")
@@ -59,14 +52,12 @@ def find_npm():
         sys.exit(1)
     return npm
 
-
 def run_checked(npm, *npm_args):
     """Run `npm <npm_args>` and exit if it fails (mirrors `set -e`)."""
     result = subprocess.run([npm, *npm_args])
     if result.returncode != 0:
         err(f"'npm {' '.join(npm_args)}' failed with exit code {result.returncode}")
         sys.exit(result.returncode)
-
 
 def start_background(npm, *npm_args):
     """Start `npm <npm_args>` in the background, in its own process group
@@ -77,7 +68,6 @@ def start_background(npm, *npm_args):
             creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
         )
     return subprocess.Popen([npm, *npm_args], preexec_fn=os.setsid)
-
 
 def kill_process_tree(proc):
     if proc is None or proc.poll() is not None:
@@ -94,9 +84,7 @@ def kill_process_tree(proc):
         except ProcessLookupError:
             pass
 
-
 # ---------- main ----------
-
 
 def main():
     _enable_ansi_on_windows()
@@ -144,9 +132,6 @@ def main():
         info("Seeding the database")
         run_checked(npm, "run", "db:seed")
 
-        info("Creating Better Auth tables (Google / email sign-in)")
-        run_checked(npm, "run", "db:migrate-auth")
-
         print(
             "\nDatabase is up.\n\n"
             "Usage:\n"
@@ -174,7 +159,6 @@ def main():
     finally:
         kill_process_tree(backend_proc)
         kill_process_tree(frontend_proc)
-
 
 if __name__ == "__main__":
     main()

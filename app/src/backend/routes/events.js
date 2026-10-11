@@ -581,6 +581,16 @@ router.post(
 				return res
 					.status(404)
 					.json({ error: 'Event not found' })
+			// Retire is only valid from PUBLISHED (the one TRANSITIONS
+			// path into RETIRED) — retiring a DRAFT/ARCHIVED event
+			// would skip the curation workflow.
+			const from = rows[0].curation_status
+			if (from === 'RETIRED')
+				return res.json({ message: 'Already RETIRED' })
+			if (from !== 'PUBLISHED')
+				return res.status(400).json({
+					error: `Invalid transition ${from} → RETIRED. Only PUBLISHED events can be retired.`,
+				})
 			await pool.query(
 				`UPDATE events SET curation_status = 'RETIRED', is_active = FALSE WHERE event_id = ?`,
 				[req.params.id]

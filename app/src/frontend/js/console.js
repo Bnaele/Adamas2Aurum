@@ -228,15 +228,39 @@ async function checkAccess() {
 		elConsole.classList.remove('hidden')
 		updateFeedbackTabCount()
 
-		// Activate events tab by default
-		const eventsTab = document.querySelector('[data-tab="events"]')
-		if (eventsTab) {
-			eventsTab.classList.add('tab-active')
+		// Per-tab access mirrors the backend role gates: without this
+		// an EVENT_AUTHOR sees a Moderation tab that 403s on every
+		// call, and a CARD_AUTHOR-only user lands on event authoring
+		// they can never save. Hidden tabs stay hidden; the first
+		// allowed tab becomes the landing tab.
+		const hasRole = (...roles) =>
+			(user?.roles || []).some((r) => roles.includes(r))
+		const canAuthorEvents = hasRole('SUPER_ADMIN', 'EVENT_AUTHOR')
+		const canAuthorCards = hasRole('SUPER_ADMIN', 'CARD_AUTHOR')
+		const tabAllowed = {
+			events: canAuthorEvents,
+			campaigns: canAuthorEvents,
+			placement: canAuthorEvents,
+			insights: canAuthorEvents,
+			cards: canAuthorCards,
+			moderation: isModerator(user),
+			feedback: true, // any console role may triage feedback
 		}
-		tabEvents.classList.remove('hidden')
-		tabCards.classList.add('hidden')
+		document.querySelectorAll('.tab-btn').forEach((btn) => {
+			if (tabAllowed[btn.dataset.tab] === false)
+				btn.classList.add('hidden')
+		})
 
-		loadEvents()
+		// Activate events tab by default (or the first allowed tab when
+		// events is hidden for this role). The tab click handler shows
+		// the panel and loads its data, so nothing else is needed here.
+		let landingTab = document.querySelector('[data-tab="events"]')
+		if (!landingTab || landingTab.classList.contains('hidden')) {
+			landingTab = document.querySelector(
+				'.tab-btn:not(.hidden)'
+			)
+		}
+		if (landingTab) landingTab.click()
 	} catch (err) {
 		console.warn('Auth check failed:', err)
 		window.location.href = '../index.html'
@@ -663,6 +687,10 @@ btnCancel.addEventListener('click', () => {
 
 async function openEventEditForm(ev) {
 	resetEventForm()
+	// The question/pool panels key off this — set it synchronously so
+	// saves always target the open event, no matter which entry point
+	// (event list, hard-question Repair, stale-event Edit) got here.
+	currentEventId = ev.event_id
 	formHeading.textContent = 'Edit Event'
 	btnSubmit.textContent = 'Save Changes'
 	btnSubmit.disabled = false
@@ -690,6 +718,12 @@ async function openEventEditForm(ev) {
 	document.getElementById('event-sub-tabs').style.display = ''
 	resetSubTabs('details')
 	setSubTabsEnabled(true)
+	// Load the question + card-pool panels for this event (previously
+	// only the event-list click path did this, so Repair/stale-Edit
+	// entries left the panels pointing at the wrong event).
+	loadQuestions(ev.event_id)
+	loadPool(ev.event_id)
+	populatePoolCardSelect()
 }
 
 function renderCurationActions(status) {
@@ -1384,21 +1418,11 @@ function escapeHtml(str) {
 		.replace(/"/g, '&quot;')
 }
 
-// Show the panel + load questions when an event is opened for editing.
-// Registered on elEventList (the <ul>) so it works for dynamically-created
-// cards; fires in the bubble phase AFTER the existing openEditForm
-// listener has already shown the edit form.
-elEventList.addEventListener('click', (e) => {
-	const editBtn = e.target.closest('[data-action="edit"]')
-	if (!editBtn) return
-	const card = editBtn.closest('.event-card')
-	const id = card?.dataset.id
-	if (!id) return
-	currentEventId = id
-	loadQuestions(id)
-	loadPool(id)
-	populatePoolCardSelect()
-})
+// NOTE: no elEventList delegated listener is needed here —
+// openEventEditForm sets currentEventId and loads the question/pool
+// panels itself for every entry point. (A parallel listener used to do
+// this on bubble, double-fetching on every Edit click and resolving
+// out of order on rapid clicks.)
 
 // Brand-new events have no id yet.
 btnNew.addEventListener('click', () => {

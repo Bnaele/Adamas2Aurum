@@ -1,9 +1,9 @@
 /**
  * Auth client wrapper — provides simple functions for the auth drawer.
  *
- * The custom PIN/session routes in /api/auth are used for username + PIN
- * login. Better Auth is used only for Google OAuth, which we trigger with a
- * plain redirect so we don't need the heavier Better Auth client bundle.
+ * Username + PIN login uses the PIN/session routes in /api/auth. Google
+ * sign-in is a full-page redirect: the backend (routes/oauth.js) sends the
+ * browser to Google and brings it back with the session cookie set.
  */
 import { API_BASE, TERMS_VERSION } from './constants.js'
 
@@ -85,64 +85,13 @@ export async function acceptTerms() {
 	}
 }
 
-export async function googleSignIn() {
-	// Back to the main map after Google — the same page username + PIN
-	// login lands players on (redirectAfterLogin in auth-helpers.js).
-	// Errors return to wherever the player started.
-	const callbackURL = '/'
-	const errorCallbackURL =
-		window.location.pathname + window.location.search
-
-	try {
-		const res = await fetch(`${AUTH_API}/sign-in/social`, {
-			method: 'POST',
-			credentials: 'include',
-			headers: {
-				'Content-Type': 'application/json',
-			},
-			body: JSON.stringify({
-				provider: 'google',
-				callbackURL,
-				errorCallbackURL,
-				newUserCallbackURL: callbackURL,
-			}),
-		})
-
-		const data = await res.json()
-
-		if (!res.ok) {
-			throw new Error(
-				data.message ||
-					data.error ||
-					'Google sign-in failed'
-			)
-		}
-
-		if (!data.url) {
-			throw new Error(
-				'Google authorization URL was not returned'
-			)
-		}
-
-		window.location.href = data.url
-		return { data: { url: data.url }, error: null }
-	} catch (error) {
-		// Same { data, error } shape as usernameSignIn/usernameSignUp;
-		// the auth drawer shows error.message to the player.
-		console.error('Google sign-in failed:', error)
-		return { data: null, error }
-	}
-}
-
-export async function baSignOut() {
-	try {
-		await fetch(`${AUTH_API}/sign-out`, {
-			method: 'POST',
-			credentials: 'include',
-		})
-	} catch (err) {
-		console.warn('Better Auth signout failed:', err)
-	}
+export function googleSignIn() {
+	const returnTo = new URL('/', window.location.origin).href
+	const url = `${AUTH_API}/google?return_to=${encodeURIComponent(returnTo)}`
+	window.location.href = url
+	// Same { data, error } shape as usernameSignIn/usernameSignUp so the
+	// auth drawer's handler is unchanged.
+	return { data: { url }, error: null }
 }
 
 /** Clear the express-session cookie too. */
@@ -151,4 +100,43 @@ export async function clearBridgeSession() {
 		method: 'POST',
 		credentials: 'include',
 	})
+}
+
+/** Request a PIN-reset token (password-reset requirement). */
+export async function requestPinReset(username) {
+	try {
+		const res = await fetch(`${AUTH_API}/forgot-pin`, {
+			method: 'POST',
+			credentials: 'include',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ email: username }),
+		})
+		const data = await res.json()
+		if (!res.ok)
+			throw new Error(data.error || 'Reset request failed')
+		return { data, error: null }
+	} catch (error) {
+		return { data: null, error }
+	}
+}
+
+/** Consume a PIN-reset token and set a new PIN. */
+export async function confirmPinReset(username, token, newPin) {
+	try {
+		const res = await fetch(`${AUTH_API}/reset-pin`, {
+			method: 'POST',
+			credentials: 'include',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				email: username,
+				token,
+				new_pin: newPin,
+			}),
+		})
+		const data = await res.json()
+		if (!res.ok) throw new Error(data.error || 'Reset failed')
+		return { data, error: null }
+	} catch (error) {
+		return { data: null, error }
+	}
 }

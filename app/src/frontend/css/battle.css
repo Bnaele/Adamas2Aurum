@@ -238,6 +238,27 @@
 	opacity: 0.6;
 }
 
+.battle-turn-timeout {
+	font-weight: bold;
+	font-size: 1.2rem;
+	color: #22c55e; /* Green */
+	transition: color 0.3s ease;
+}
+
+.battle-turn-timeout.urgent {
+	color: #ef4444; /* Red */
+	animation: timeout-pulse 0.5s infinite alternate;
+}
+
+@keyframes timeout-pulse {
+	from {
+		opacity: 1;
+	}
+	to {
+		opacity: 0.5;
+	}
+}
+
 .battle-board {
 	margin-bottom: 1.25rem;
 }

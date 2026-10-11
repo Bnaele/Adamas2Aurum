@@ -154,3 +154,90 @@
 	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 	max-width: 320px;
 }
+
+/* Account modals (edit username, change password, delete account). */
+.acct-modal-overlay {
+	position: fixed;
+	inset: 0;
+	background: rgba(0, 0, 0, 0.5);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 3000;
+	padding: 1rem;
+}
+.acct-modal {
+	background: var(--surface, #fff);
+	border: 1px solid var(--border, #dcdde1);
+	border-radius: 12px;
+	box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+	max-width: 380px;
+	width: 100%;
+	padding: 1.25rem;
+}
+.acct-modal-title {
+	font-size: 1rem;
+	font-weight: 700;
+	color: var(--text, #2f3640);
+	margin-bottom: 0.75rem;
+}
+.acct-modal-text {
+	font-size: 0.875rem;
+	color: var(--text, #2f3640);
+	line-height: 1.5;
+	margin: 0 0 0.75rem;
+}
+.acct-field-label {
+	display: block;
+	font-size: 0.75rem;
+	font-weight: 600;
+	color: var(--text-muted, #7f8fa6);
+	margin: 0.6rem 0 0.25rem;
+}
+.acct-input {
+	width: 100%;
+	box-sizing: border-box;
+	padding: 0.55rem 0.7rem;
+	border-radius: 8px;
+	border: 1px solid var(--border, #dcdde1);
+	background: var(--surface-2, #f5f6fa);
+	color: var(--text, #2f3640);
+	font-family: inherit;
+	font-size: 0.875rem;
+}
+.acct-input:focus {
+	outline: 2px solid var(--accent, #0c2461);
+	outline-offset: 1px;
+}
+.acct-modal-error {
+	font-size: 0.8rem;
+	color: var(--danger, #e05252);
+	margin: 0.6rem 0 0;
+}
+.acct-modal-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 0.5rem;
+	margin-top: 1rem;
+}
+.acct-btn {
+	padding: 0.5rem 1rem;
+	border-radius: 8px;
+	border: 1px solid var(--border, #dcdde1);
+	background: var(--surface-2, #f5f6fa);
+	color: var(--text, #2f3640);
+	font-family: inherit;
+	font-size: 0.85rem;
+	font-weight: 600;
+	cursor: pointer;
+}
+.acct-btn-primary {
+	background: var(--accent, #0c2461);
+	border-color: var(--accent, #0c2461);
+	color: #fff;
+}
+.acct-btn-danger {
+	background: var(--danger, #e05252);
+	border-color: var(--danger, #e05252);
+	color: #fff;
+}

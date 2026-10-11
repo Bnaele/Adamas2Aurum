@@ -487,6 +487,22 @@
 				height: 100%;
 			}
 
+			/* ── Skip link (keyboard a11y) ────────────────────── */
+			.skip-link {
+				position: absolute;
+				left: -9999px;
+				top: 0;
+				background: #fbbf24;
+				color: #111827;
+				padding: 0.6rem 1rem;
+				z-index: 3000;
+				font-weight: 700;
+				border-radius: 0 0 0.5rem 0;
+			}
+			.skip-link:focus {
+				left: 0;
+			}
+
 			/* ── Recenter button ─────────────────────────────── */
 			.btn-recenter {
 				position: absolute;
@@ -513,6 +529,7 @@
 		</style>
 	</head>
 	<body>
+		<a href="#events-main" class="skip-link">Skip to events map</a>
 		<header class="site-header">
 			<div class="header-inner">
 				<a class="logo" href="../index.html">
@@ -774,7 +791,11 @@
 			</div>
 		</header>
 
-		<div class="map-wrap">
+		<main
+			class="map-wrap"
+			id="events-main"
+			aria-label="Campus events map"
+		>
 			<div id="map">
 				<div class="map-fog" aria-hidden="true"></div>
 				<div class="pogo-clouds" aria-hidden="true">
@@ -815,6 +836,7 @@
 				class="btn-recenter"
 				id="btn-recenter"
 				title="Centre on my location"
+				aria-label="Centre map on my location"
 			>
 				<span class="nav-ico">
 					<svg
@@ -838,7 +860,7 @@
 				Loading events…
 			</div>
 			<div id="map-error" class="map-overlay hidden"></div>
-		</div>
+		</main>
 
 		<script type="module" src="../js/events.js"></script>
 		<script type="module">

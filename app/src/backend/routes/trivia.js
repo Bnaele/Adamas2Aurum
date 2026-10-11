@@ -7,9 +7,9 @@ import { analyzeMovement } from '../services/movementTrust.js'
 const router = express.Router()
 
 // Blocks access to a route unless the player has an active login session.
-// req.session.user is populated either by the PIN-based /auth/login route,
-// or by the Better Auth bridge middleware in server.js — both end up
-// setting the same { user_id, name, email } shape, so this check works
+// req.session.user is populated either by the PIN-based /auth/login route
+// or by the Google OAuth callback (routes/oauth.js) — both end up
+// setting the same { user_id, name, ... } shape, so this check works
 // the same regardless of which auth method the player used.
 function requireAuth(req, res, next) {
 	const userId = req.session?.user?.user_id || req.user?.user_id
@@ -216,7 +216,11 @@ router.get('/event/:eventId', requireAuth, async (req, res) => {
 		// source of truth), NOT card ownership — a player could trade or
 		// lose a card later, so ownership is not a reliable "did they ever
 		// win here?" signal.
-		const player_id = req.session.user.user_id
+		// requireAuth above guarantees one of these is set; prefer the
+		// session but fall back to req.user (e.g. token/bridge auth)
+		// instead of crashing with a TypeError.
+		const player_id =
+			req.session?.user?.user_id ?? req.user?.user_id
 		const already_earned = !(await canAwardCard(
 			pool,
 			player_id,
@@ -299,7 +303,7 @@ router.post('/submit', requireAuth, async (req, res) => {
 		claimed_lng,
 		timed_out: clientTimedOut,
 	} = req.body
-	const user_id = req.session.user.user_id // comes from the session cookie, not the request body — a player can't spoof this to submit as someone else
+	const user_id = req.session?.user?.user_id ?? req.user?.user_id // comes from the session, not the request body — a player can't spoof this to submit as someone else
 	const timedOut = !!clientTimedOut
 	const hasAnswerText =
 		typeof answer_text === 'string' &&

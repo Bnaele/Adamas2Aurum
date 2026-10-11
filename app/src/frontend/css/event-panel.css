@@ -82,6 +82,20 @@
 	gap: 0.3rem;
 }
 
+/* ── Mobile ──────────────────────────────────────── */
+@media (max-width: 720px) {
+	.map-sidebar {
+		/* Don't let the overlay swallow the map on phones */
+		width: calc(100% - 1.5rem);
+		max-height: 38%;
+		top: 0.5rem;
+		left: 0.75rem;
+	}
+	.maplibregl-popup-content {
+		min-width: 0;
+	}
+}
+
 /* ── Popup ───────────────────────────────────────── */
 .maplibregl-popup-content {
 	border-radius: var(--radius) !important;

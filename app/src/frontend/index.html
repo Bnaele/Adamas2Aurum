@@ -842,6 +842,20 @@
 			.auth-overlay.open {
 				display: block;
 			}
+			.skip-link {
+				position: absolute;
+				left: -9999px;
+				top: 0;
+				background: #fbbf24;
+				color: #111827;
+				padding: 0.6rem 1rem;
+				z-index: 3000;
+				font-weight: 700;
+				border-radius: 0 0 0.5rem 0;
+			}
+			.skip-link:focus {
+				left: 0;
+			}
 
 			.auth-drawer {
 				position: fixed;
@@ -1034,11 +1048,16 @@
 		</style>
 	</head>
 	<body>
+		<a href="#map-main" class="skip-link">Skip to game map</a>
 		<header>
 			<div class="logo-title">
 				<span>🏛️ Adamas2Aurum</span>
 			</div>
-			<nav class="header-nav" id="header-nav">
+			<nav
+				class="header-nav"
+				id="header-nav"
+				aria-label="Primary"
+			>
 				<a
 					href="index.html"
 					class="nav-link nav-link-active hidden"
@@ -1245,6 +1264,7 @@
 					<button
 						id="btn-logout"
 						class="logout-btn hidden"
+						aria-label="Log out"
 					>
 						Log Out
 					</button>
@@ -1252,6 +1272,8 @@
 						id="btn-signin"
 						onclick="openAuthDrawer()"
 						class="auth-link hidden"
+						aria-label="Sign in or register"
+						aria-haspopup="dialog"
 					>
 						Sign In / Register
 					</button>
@@ -1260,119 +1282,135 @@
 		</header>
 
 		<div id="map">
-			<div class="map-fog" aria-hidden="true"></div>
-			<div class="pogo-clouds" aria-hidden="true">
-				<div class="cloud c1"></div>
-				<div class="cloud c2"></div>
-				<div class="cloud c3"></div>
-				<div class="cloud c4"></div>
-			</div>
-			<div id="offcampus-banner">
-				You're off campus — visit Wits to play
-				challenges. Browsing the world map.
-			</div>
+			<main id="map-main" aria-label="Wits Quest game map">
+				<div class="map-fog" aria-hidden="true"></div>
+				<div class="pogo-clouds" aria-hidden="true">
+					<div class="cloud c1"></div>
+					<div class="cloud c2"></div>
+					<div class="cloud c3"></div>
+					<div class="cloud c4"></div>
+				</div>
+				<div id="offcampus-banner">
+					You're off campus — visit Wits to play
+					challenges. Browsing the world map.
+				</div>
 
-			<!-- Left rail: intro card + live event list (shared sidebar
+				<!-- Left rail: intro card + live event list (shared sidebar
 			     styles/markup with pages/events.html, see event-panel.css
 			     and js/event-status.js). -->
-			<div class="map-sidebar" id="map-sidebar">
-				<div id="hud">
-					<h1>🗺️ Explore anywhere</h1>
-					<p>
-						The whole world, gamified. Event
-						stops live at Wits — tap one
-						anywhere, but you must be on
-						campus to play.
-					</p>
+				<div class="map-sidebar" id="map-sidebar">
+					<div id="hud">
+						<h1>🗺️ Explore anywhere</h1>
+						<p>
+							The whole world,
+							gamified. Event stops
+							live at Wits — tap one
+							anywhere, but you must
+							be on campus to play.
+						</p>
+					</div>
+					<div class="sidebar-header">
+						<span class="nav-ico">
+							<svg
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								aria-hidden="true"
+							>
+								<path
+									d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"
+								/>
+								<circle
+									cx="12"
+									cy="10"
+									r="3"
+								/>
+							</svg>
+						</span>
+						Campus Events
+					</div>
+					<div
+						id="sidebar-events"
+						class="sidebar-events"
+					></div>
 				</div>
-				<div class="sidebar-header">
-					<span class="nav-ico">
-						<svg
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="2"
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							aria-hidden="true"
-						>
-							<path
-								d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"
-							/>
-							<circle
-								cx="12"
-								cy="10"
-								r="3"
-							/>
-						</svg>
-					</span>
-					Campus Events
-				</div>
-				<div
-					id="sidebar-events"
-					class="sidebar-events"
-				></div>
-			</div>
 
-			<div id="legend">
-				<div>
-					<span
-						class="swatch"
-						style="background: #6e7683"
-					></span>
-					Roads
+				<div id="legend">
+					<div>
+						<span
+							class="swatch"
+							style="
+								background: #6e7683;
+							"
+						></span>
+						Roads
+					</div>
+					<div>
+						<span
+							class="swatch"
+							style="
+								background: #69b795;
+							"
+						></span>
+						Buildings
+					</div>
+					<div>
+						<span
+							class="swatch"
+							style="
+								background: #66b78e;
+							"
+						></span>
+						Parks
+					</div>
+					<div>
+						<span
+							class="swatch"
+							style="
+								background: #8acde8;
+							"
+						></span>
+						Water
+					</div>
 				</div>
-				<div>
-					<span
-						class="swatch"
-						style="background: #69b795"
-					></span>
-					Buildings
-				</div>
-				<div>
-					<span
-						class="swatch"
-						style="background: #66b78e"
-					></span>
-					Parks
-				</div>
-				<div>
-					<span
-						class="swatch"
-						style="background: #8acde8"
-					></span>
-					Water
-				</div>
-			</div>
 
-			<div id="tilt-controls">
-				<button id="btn-tilt">Tilt view</button>
-				<button id="btn-reset">Reset camera</button>
-			</div>
+				<div id="tilt-controls">
+					<button id="btn-tilt">Tilt view</button>
+					<button id="btn-reset">
+						Reset camera
+					</button>
+				</div>
 
-			<div id="geo-panel">
-				<h2>Location (dev test)</h2>
-				<button id="btn-real-gps">Use real GPS</button>
-				<button id="btn-sim-oncampus">
-					Simulate: on campus
+				<div id="geo-panel">
+					<h2>Location (dev test)</h2>
+					<button id="btn-real-gps">
+						Use real GPS
+					</button>
+					<button id="btn-sim-oncampus">
+						Simulate: on campus
+					</button>
+					<button id="btn-sim-offcampus">
+						Simulate: off campus
+					</button>
+				</div>
+
+				<div id="gps-status" data-mode="locating">
+					<span class="gps-dot"></span>
+					<span class="gps-text">Locating…</span>
+				</div>
+
+				<button
+					class="recenter-btn"
+					id="recenter-btn"
+					title="Follow my location"
+					aria-label="Recenter map on my location"
+				>
+					🎯
 				</button>
-				<button id="btn-sim-offcampus">
-					Simulate: off campus
-				</button>
-			</div>
-
-			<div id="gps-status" data-mode="locating">
-				<span class="gps-dot"></span>
-				<span class="gps-text">Locating…</span>
-			</div>
-
-			<button
-				class="recenter-btn"
-				id="recenter-btn"
-				title="Follow my location"
-			>
-				🎯
-			</button>
+			</main>
 		</div>
 
 		<!-- Auth Drawer -->
@@ -1381,8 +1419,18 @@
 			class="auth-overlay"
 			onclick="closeAuthDrawer()"
 		></div>
-		<div id="auth-drawer" class="auth-drawer">
-			<button class="close-btn" onclick="closeAuthDrawer()">
+		<div
+			id="auth-drawer"
+			class="auth-drawer"
+			role="dialog"
+			aria-modal="true"
+			aria-label="Sign in or create account"
+		>
+			<button
+				class="close-btn"
+				onclick="closeAuthDrawer()"
+				aria-label="Close sign in dialog"
+			>
 				&times;
 			</button>
 			<h2>Adamas2Aurum</h2>
@@ -1458,6 +1506,76 @@
 						Log In
 					</button>
 				</form>
+				<details
+					id="forgot-pin-block"
+					style="margin-top: 0.75rem"
+				>
+					<summary
+						style="
+							cursor: pointer;
+							font-size: 0.85rem;
+						"
+					>
+						Forgot PIN?
+					</summary>
+					<form
+						id="drawer-forgot-pin-form"
+						style="margin-top: 0.5rem"
+					>
+						<div class="form-group">
+							<input
+								type="text"
+								id="drawer-forgot-username"
+								placeholder="Username"
+								autocomplete="username"
+								aria-label="Username for PIN reset"
+							/>
+						</div>
+						<button
+							type="submit"
+							class="submit-btn"
+						>
+							Send reset token
+						</button>
+					</form>
+					<form
+						id="drawer-reset-pin-form"
+						style="margin-top: 0.5rem"
+					>
+						<div class="form-group">
+							<input
+								type="text"
+								id="drawer-reset-token"
+								placeholder="Reset token"
+								autocomplete="off"
+								aria-label="Reset token"
+							/>
+						</div>
+						<div class="form-group">
+							<input
+								type="password"
+								id="drawer-reset-new-pin"
+								placeholder="New PIN (4–6 digits)"
+								inputmode="numeric"
+								pattern="[0-9]{4,6}"
+								autocomplete="new-password"
+								aria-label="New PIN"
+							/>
+						</div>
+						<button
+							type="submit"
+							class="submit-btn"
+						>
+							Set new PIN
+						</button>
+					</form>
+					<p
+						id="forgot-pin-status"
+						class="auth-status"
+						role="status"
+						aria-live="polite"
+					></p>
+				</details>
 			</div>
 
 			<!-- SIGNUP PANEL -->

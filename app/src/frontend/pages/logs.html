@@ -51,6 +51,12 @@
 			button:hover {
 				background: #30363d;
 			}
+			main {
+				flex: 1;
+				display: flex;
+				flex-direction: column;
+				min-height: 0;
+			}
 			#log-container {
 				flex: 1;
 				background: #161b22;
@@ -62,6 +68,10 @@
 				word-break: break-all;
 				font-size: 0.85rem;
 				line-height: 1.4;
+			}
+			#log-container:focus {
+				outline: 2px solid #58a6ff;
+				outline-offset: -2px;
 			}
 			.log-WARN {
 				color: #d29922;
@@ -92,7 +102,15 @@
 				</button>
 			</div>
 		</header>
-		<div id="log-container">Loading server logs...</div>
+		<main aria-label="Server logs">
+			<div
+				id="log-container"
+				tabindex="0"
+				aria-label="Server log stream"
+			>
+				Loading server logs...
+			</div>
+		</main>
 
 		<script>
 			let autoScroll = true

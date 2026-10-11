@@ -1,6 +1,5 @@
 {
 	"dependencies": {
-		"better-auth": "^1.7.1",
 		"cors": "^2.8.6",
 		"dotenv": "^17.4.2",
 		"express": "^5.2.1",
@@ -10,25 +9,19 @@
 		"ws": "^8.21.3"
 	},
 	"devDependencies": {
-		"esbuild": "^0.28.2",
 		"jest-coverage-badges": "^1.0.0"
 	},
 	"main": "server.js",
 	"name": "a2a-backend",
 	"scripts": {
-		"build": "node build.js",
 		"db:down": "docker compose down",
 		"db:up": "docker compose up -d",
 		"dev": "node --watch server.js",
 		"start": "node server.js",
 		"db:seed": "node seed.js",
 		"db:seed-wits": "node seed_wits.js",
-		"db:reset": "node reset_db.js",
-		"db:migrate-auth": "node db/migrate_better_auth.js"
+		"db:reset": "node reset_db.js"
 	},
 	"type": "module",
-	"version": "1.0.0",
-	"allowScripts": {
-		"esbuild@0.28.2": true
-	}
+	"version": "1.0.0"
 }

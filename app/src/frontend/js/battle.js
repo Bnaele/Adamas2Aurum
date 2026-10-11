@@ -20,6 +20,7 @@ var user = null
 const AUTH_API = `${API_BASE}/api/auth`
 
 const BATTLE_DECK_NO_CARDS = 5
+let turnTimerInterval = null
 
 ;(async function createSlots() {
 	const deck_slots = document.getElementById('deck-slots')
@@ -52,6 +53,7 @@ const elBattleStart = document.getElementById('btn-start-battle')
 
 const elBattleView = document.getElementById('view-battle')
 const elBattlePlayerTurn = document.getElementById('turn-indicator')
+const elBattleTurnTimeout = document.getElementById('turn-timeout')
 const elBattleTurnNumber = document.getElementById('turn-number')
 const elBattleOppCardsList = document.getElementById('opponent-cards')
 const elBattlePlayerCardsList = document.getElementById('player-cards')
@@ -71,6 +73,9 @@ const elListError = document.getElementById('list-error')
 const btnLogout = document.getElementById('btn-logout')
 
 var battleDeckCount = 0
+// Whether the Start-battle click handler is bound yet (loadSelectionEvents
+// runs once per battle, so without this the handler stacks).
+var battleStartBound = false
 const battleDeck = Array.from({ length: BATTLE_DECK_NO_CARDS }, (_, index) => {
 	const slotIndex = index + 1
 	return {
@@ -482,45 +487,112 @@ function refreshBattleLogs(
 	player_result,
 	player_cards,
 	opponent_result,
-	opponent_cards
+	opponent_cards,
+	timeout = false
 ) {
 	var li, actor, target
 	if (player_result) {
 		li = document.createElement('li')
 		li.classList.add('player-log')
-		actor = player_cards[player_result.attacker_slot].name
-		if (
-			ACTION_TARGETS.SELF.includes(player_result.action) ||
-			ACTION_TARGETS.TEAM.includes(player_result.action)
-		)
-			target = player_cards[player_result.target_slot].name
-		else target = opponent_cards[player_result.target_slot].name
-		li.textContent = action_log(
-			`Player "${actor}"`,
-			`Opponent "${target}"`,
-			player_result
-		)
+		if (player_result !== 'turn_timeout') {
+			actor = player_cards[player_result.attacker_slot].name
+			if (
+				ACTION_TARGETS.SELF.includes(
+					player_result.action
+				) ||
+				ACTION_TARGETS.TEAM.includes(
+					player_result.action
+				)
+			)
+				target =
+					player_cards[player_result.target_slot]
+						.name
+			else
+				target =
+					opponent_cards[
+						player_result.target_slot
+					].name
+			li.textContent = action_log(
+				`Player "${actor}"`,
+				`Opponent "${target}"`,
+				player_result
+			)
+		} else {
+			li.textContent = 'Player missed turn.'
+		}
 		elBattleLog.appendChild(li)
 	}
 	if (opponent_result) {
 		li = document.createElement('li')
 		li.classList.add('opponent-log')
-		actor = opponent_cards[opponent_result.attacker_slot].name
-		if (
-			ACTION_TARGETS.SELF.includes(opponent_result.action) ||
-			ACTION_TARGETS.TEAM.includes(opponent_result.action)
-		)
-			target =
-				opponent_cards[opponent_result.target_slot].name
-		else target = player_cards[opponent_result.target_slot].name
-		li.textContent = action_log(
-			`Opponent "${actor}"`,
-			`Player "${target}"`,
-			opponent_result
-		)
+		if (opponent_result !== 'turn_timeout') {
+			actor =
+				opponent_cards[opponent_result.attacker_slot]
+					.name
+			if (
+				ACTION_TARGETS.SELF.includes(
+					opponent_result.action
+				) ||
+				ACTION_TARGETS.TEAM.includes(
+					opponent_result.action
+				)
+			)
+				target =
+					opponent_cards[
+						opponent_result.target_slot
+					].name
+			else
+				target =
+					player_cards[
+						opponent_result.target_slot
+					].name
+			li.textContent = action_log(
+				`Opponent "${actor}"`,
+				`Player "${target}"`,
+				opponent_result
+			)
+		} else {
+			li.textContent = 'Opponent missed turn.'
+		}
 		elBattleLog.appendChild(li)
 	}
 	scrollToBottomBattleLog()
+}
+
+function startTurnTimer(durationSeconds = 30) {
+	// Always clear any existing interval to prevent overlapping timers
+	stopTurnTimer()
+
+	const elBattleTurnTimeout = document.getElementById('turn-timeout')
+	if (!elBattleTurnTimeout) return
+
+	let timeLeft = durationSeconds
+	elBattleTurnTimeout.textContent = `${timeLeft}s`
+	elBattleTurnTimeout.classList.remove('urgent') // Optional styling reset
+
+	turnTimerInterval = setInterval(() => {
+		timeLeft -= 1
+
+		if (timeLeft <= 0) {
+			stopTurnTimer()
+			elBattleTurnTimeout.textContent = '0s'
+			return
+		}
+
+		elBattleTurnTimeout.textContent = `${timeLeft}s`
+
+		// Optional visual cue when 5 seconds or fewer remain
+		if (timeLeft <= 5) {
+			elBattleTurnTimeout.classList.add('urgent')
+		}
+	}, 1000)
+}
+
+function stopTurnTimer() {
+	if (turnTimerInterval !== null) {
+		clearInterval(turnTimerInterval)
+		turnTimerInterval = null
+	}
 }
 
 function refreshBattleView(battle_id, user_id, state) {
@@ -531,7 +603,7 @@ function refreshBattleView(battle_id, user_id, state) {
 		)
 		return
 	}
-	elBattleTurnNumber.textContent = state.turn_number ?? 1
+	elBattleTurnNumber.textContent = Math.trunc(state.turn_number) ?? 1
 	elBattlePlayerTurn.textContent =
 		state.turn === user_id ? 'Your turn' : "Opponent's turn"
 	var player_cards, opponent_cards
@@ -661,8 +733,16 @@ function connectToWebSocket() {
 							data.state
 						)
 						switchToBattleView()
+						startTurnTimer(
+							Math.round(
+								data.turn_timer_ms /
+									1000,
+								2
+							) ?? 30
+						)
 						break
 
+					case 'turn_timeout':
 					case 'turn_result':
 						if (
 							!data.state ||
@@ -717,10 +797,17 @@ function connectToWebSocket() {
 							user.user_id,
 							data.state
 						)
+						startTurnTimer(
+							Math.round(
+								data.turn_timer_ms /
+									1000,
+								2
+							) ?? 30
+						)
 						break
 
 					case 'match_results':
-						switchToResultView()
+						stopTurnTimer()
 						elResultHeading.textContent =
 							data.winner ===
 							user.user_id
@@ -732,6 +819,7 @@ function connectToWebSocket() {
 						elResultDamageInflicted.textContent =
 							data.damage_inflicted ||
 							0
+						switchToResultView()
 						break
 					case 'error':
 						if (
@@ -948,9 +1036,15 @@ async function loadSelectionEvents() {
 			li.addEventListener('click', (el) => addToDeck(card))
 		}
 
-		elBattleStart.addEventListener('click', () =>
-			submitDeck(battleDeck.map((x) => x.card))
-		)
+		// The Start button lives across battles while this runs once per
+		// battle setup — bind it only the first time, otherwise every
+		// visit stacks another listener and one click sends N decks.
+		if (!battleStartBound) {
+			elBattleStart.addEventListener('click', () =>
+				submitDeck(battleDeck.map((x) => x.card))
+			)
+			battleStartBound = true
+		}
 	} catch (err) {
 		elListError.textContent = `Could not load events — ${err.message}`
 		elListError.classList.remove('hidden')

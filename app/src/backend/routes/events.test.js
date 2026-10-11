@@ -503,4 +503,40 @@ describe('POST /api/events/:id/retire', () => {
 			expect(res.status).toBe(404)
 		})
 	})
+	test('400 when retiring a non-published event', async () => {
+		pool.query
+			.mockResolvedValueOnce([[{ 1: 1 }]]) // author
+			.mockResolvedValueOnce([[{ Field: 'curation_status' }]]) // hasCurationColumn
+			.mockResolvedValueOnce([[{ curation_status: 'DRAFT' }]])
+		const app = makeApp({ user_id: 1 })
+		await withServer(app, async (base) => {
+			const res = await fetch(
+				`${base}/api/events/10/retire`,
+				{ method: 'POST' }
+			)
+			expect(res.status).toBe(400)
+			const body = await res.json()
+			expect(body.error).toMatch(/Only PUBLISHED/)
+		})
+		// No UPDATE issued for an invalid transition
+		expect(pool.query).toHaveBeenCalledTimes(3)
+	})
+	test('200 idempotent when already retired', async () => {
+		pool.query
+			.mockResolvedValueOnce([[{ 1: 1 }]])
+			.mockResolvedValueOnce([[{ Field: 'curation_status' }]])
+			.mockResolvedValueOnce([
+				[{ curation_status: 'RETIRED' }],
+			])
+		const app = makeApp({ user_id: 1 })
+		await withServer(app, async (base) => {
+			const res = await fetch(
+				`${base}/api/events/10/retire`,
+				{ method: 'POST' }
+			)
+			expect(res.status).toBe(200)
+			const body = await res.json()
+			expect(body.message).toMatch(/Already RETIRED/)
+		})
+	})
 })
