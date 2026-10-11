@@ -109,7 +109,9 @@ export function create_oauth_router({
 		// Must be listed verbatim under "Authorized redirect URIs" for this
 		// OAuth client in Google Cloud Console, or Google answers
 		// "Error 400: redirect_uri_mismatch".
-		console.log(`[oauth] Google redirect URI: ${startup_cfg.redirectUri}`)
+		console.log(
+			`[oauth] Google redirect URI: ${startup_cfg.redirectUri}`
+		)
 	}
 
 	router.get('/google', async (req, res) => {
@@ -126,7 +128,9 @@ export function create_oauth_router({
 		) {
 			return res
 				.status(400)
-				.json({ error: 'A valid sign-in challenge is required' })
+				.json({
+					error: 'A valid sign-in challenge is required',
+				})
 		}
 		const state = crypto.randomBytes(16).toString('base64url')
 		const { verifier, challenge } = create_pkce()
@@ -134,13 +138,21 @@ export function create_oauth_router({
 			state,
 			verifier,
 			client_challenge,
-			return_to: safe_return_to(req.query.return_to, allowed_origins),
+			return_to: safe_return_to(
+				req.query.return_to,
+				allowed_origins
+			),
 		}
 		try {
 			await promisify((cb) => req.session.save(cb))
 		} catch (err) {
-			console.warn('[oauth] session save failed:', err.message)
-			return res.status(500).json({ error: 'Could not start sign-in' })
+			console.warn(
+				'[oauth] session save failed:',
+				err.message
+			)
+			return res
+				.status(500)
+				.json({ error: 'Could not start sign-in' })
 		}
 		res.redirect(build_auth_url(cfg, { state, challenge }))
 	})
@@ -150,7 +162,9 @@ export function create_oauth_router({
 		if (pending) delete req.session.oauth // single use
 		const return_to = pending?.return_to || '/'
 		const fail = (message) =>
-			res.redirect(with_query(return_to, { auth_error: message }))
+			res.redirect(
+				with_query(return_to, { auth_error: message })
+			)
 
 		const cfg = get_config()
 		if (!cfg) return fail('Google sign-in is not configured')
@@ -174,10 +188,14 @@ export function create_oauth_router({
 			)
 			const profile = await fetch_profile(token, fetchImpl)
 			if (!profile?.sub || !profile.email)
-				return fail('Google did not return an email address.')
+				return fail(
+					'Google did not return an email address.'
+				)
 			// An unverified email must never be matched to a local account.
 			if (profile.email_verified !== true)
-				return fail('Your Google email address is not verified.')
+				return fail(
+					'Your Google email address is not verified.'
+				)
 
 			const resolved = await resolve_google_user(db, profile)
 			if (resolved.conflict) return fail(resolved.conflict)
@@ -185,15 +203,22 @@ export function create_oauth_router({
 			// Hand the frontend a one-time code; it redeems it at
 			// /oauth/exchange (see the note above).
 			purge_expired()
-			const login_code = crypto.randomBytes(32).toString('base64url')
+			const login_code = crypto
+				.randomBytes(32)
+				.toString('base64url')
 			login_codes.set(login_code, {
 				user_id: resolved.user.user_id,
 				challenge: pending.client_challenge,
 				expires: Date.now() + LOGIN_CODE_TTL_MS,
 			})
-			res.redirect(with_query(return_to, { auth_code: login_code }))
+			res.redirect(
+				with_query(return_to, { auth_code: login_code })
+			)
 		} catch (err) {
-			console.warn('[oauth] Google sign-in failed:', err.message)
+			console.warn(
+				'[oauth] Google sign-in failed:',
+				err.message
+			)
 			fail('Google sign-in failed. Please try again.')
 		}
 	})
@@ -203,7 +228,9 @@ export function create_oauth_router({
 		if (typeof code !== 'string' || typeof verifier !== 'string')
 			return res
 				.status(400)
-				.json({ error: 'code and verifier are required' })
+				.json({
+					error: 'code and verifier are required',
+				})
 
 		purge_expired()
 		const entry = login_codes.get(code)
@@ -228,7 +255,9 @@ export function create_oauth_router({
 				[entry.user_id]
 			)
 			if (!rows.length)
-				return res.status(401).json({ error: 'Account not found' })
+				return res
+					.status(401)
+					.json({ error: 'Account not found' })
 
 			// New session id on login (prevents session fixation).
 			await promisify((cb) => req.session.regenerate(cb))
@@ -236,8 +265,13 @@ export function create_oauth_router({
 			await promisify((cb) => req.session.save(cb))
 			res.json(rows[0])
 		} catch (err) {
-			console.warn('[oauth] code exchange failed:', err.message)
-			res.status(500).json({ error: 'Could not complete sign-in' })
+			console.warn(
+				'[oauth] code exchange failed:',
+				err.message
+			)
+			res.status(500).json({
+				error: 'Could not complete sign-in',
+			})
 		}
 	})
 

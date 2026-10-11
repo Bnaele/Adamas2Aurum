@@ -169,7 +169,8 @@ export async function completeGoogleSignIn() {
 			body: JSON.stringify({ code, verifier }),
 		})
 		const data = await res.json()
-		if (!res.ok) throw new Error(data.error || 'Google sign-in failed')
+		if (!res.ok)
+			throw new Error(data.error || 'Google sign-in failed')
 		return { data, error: null }
 	} catch (error) {
 		return { data: null, error }

@@ -55,11 +55,16 @@ describe('googleSignIn', () => {
 		expect(verifier).toMatch(/^[A-Za-z0-9_-]{43}$/)
 
 		const url = new URL(window.location.href)
-		expect(url.origin + url.pathname).toBe(`${API_BASE}/api/auth/google`)
-		expect(url.searchParams.get('return_to')).toBe('https://app.example/')
-		const expected = (
-			await import('node:crypto')
-		).createHash('sha256').update(verifier).digest('base64url')
+		expect(url.origin + url.pathname).toBe(
+			`${API_BASE}/api/auth/google`
+		)
+		expect(url.searchParams.get('return_to')).toBe(
+			'https://app.example/'
+		)
+		const expected = (await import('node:crypto'))
+			.createHash('sha256')
+			.update(verifier)
+			.digest('base64url')
 		expect(url.searchParams.get('challenge')).toBe(expected)
 	})
 
@@ -119,7 +124,10 @@ describe('completeGoogleSignIn', () => {
 		const [url, init] = global.fetch.mock.calls[0]
 		expect(url).toBe(`${API_BASE}/api/auth/oauth/exchange`)
 		expect(init.credentials).toBe('include')
-		expect(JSON.parse(init.body)).toEqual({ code: 'abc123', verifier: 'ver' })
+		expect(JSON.parse(init.body)).toEqual({
+			code: 'abc123',
+			verifier: 'ver',
+		})
 		expect(sessionStorage.getItem('a2a_google_verifier')).toBeNull()
 	})
 
