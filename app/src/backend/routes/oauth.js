@@ -126,11 +126,9 @@ export function create_oauth_router({
 			typeof client_challenge !== 'string' ||
 			!CHALLENGE_RE.test(client_challenge)
 		) {
-			return res
-				.status(400)
-				.json({
-					error: 'A valid sign-in challenge is required',
-				})
+			return res.status(400).json({
+				error: 'A valid sign-in challenge is required',
+			})
 		}
 		const state = crypto.randomBytes(16).toString('base64url')
 		const { verifier, challenge } = create_pkce()
@@ -226,11 +224,9 @@ export function create_oauth_router({
 	router.post('/oauth/exchange', async (req, res) => {
 		const { code, verifier } = req.body || {}
 		if (typeof code !== 'string' || typeof verifier !== 'string')
-			return res
-				.status(400)
-				.json({
-					error: 'code and verifier are required',
-				})
+			return res.status(400).json({
+				error: 'code and verifier are required',
+			})
 
 		purge_expired()
 		const entry = login_codes.get(code)
